@@ -1,0 +1,117 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}数据清洗与质量管理 - 电商分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">数据清洗与质量检查</h4>
+            <p class="text-muted small mb-0">执行数据校验算法、清洗异常值并同步至 MySQL 数据库</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" onclick="runQualityCheck()">
+                <i class="bi bi-search me-1"></i>执行质量检查
+            </button>
+            <button class="btn btn-success btn-sm" onclick="runDataCleanAndSync()">
+                <i class="bi bi-magic me-1"></i>执行清洗并同步入库
+            </button>
+        </div>
+    </div>
+
+    <!-- 结果通知面板 -->
+    <div id="opStatusAlert" class="alert alert-secondary d-none py-2 mb-3"></div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-check2-circle text-primary me-2"></i>数据质量检查报告</h6>
+                </div>
+                <div class="card-body">
+                    <div id="qualityResultArea" class="text-muted small">
+                        点击上方“执行质量检查”按钮，评估原始数据的完整性、唯一性与数值合法性。
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-funnel-fill text-success me-2"></i>清洗流水线规范</h6>
+                </div>
+                <div class="card-body small">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>1. 品牌 (brand) 缺失值填充</span>
+                            <span class="badge bg-light text-dark border">Fill Unknown</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>2. 重复商品记录剔除</span>
+                            <span class="badge bg-light text-dark border">Unique ID</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>3. 价格与评分异常边界校验</span>
+                            <span class="badge bg-light text-dark border">Price > 0 & Rating 0-5</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>4. 写入隔离与落库</span>
+                            <span class="badge bg-light text-dark border">data/cleaned/ & MySQL</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function runQualityCheck() {
+    const box = document.getElementById('qualityResultArea');
+    box.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在检查数据质量...';
+    try {
+        const res = await (await fetch('/admin/quality-check')).json();
+        if (res.code === 200 && res.data) {
+            const d = res.data;
+            box.innerHTML = `
+                <div class="p-3 bg-light rounded-3 border">
+                    <div class="fw-bold text-success mb-2"><i class="bi bi-shield-check me-1"></i>质量检查完成</div>
+                    <div>数据总行数：<b>${d.row_count}</b></div>
+                    <div>重复商品数：<b>${d.duplicate_count}</b></div>
+                    <div>价格异常数：<b>${d.invalid_price_count}</b></div>
+                    <div>评分异常数：<b>${d.invalid_rating_count}</b></div>
+                    <div>品牌缺失数：<b>${d.brand_missing_count}</b></div>
+                </div>
+            `;
+        } else {
+            box.textContent = res.message || '检查失败';
+        }
+    } catch (e) {
+        box.textContent = '检查请求出错';
+    }
+}
+
+async function runDataCleanAndSync() {
+    if (!confirm('确认执行数据清洗并同步入库吗？')) return;
+    const alertBox = document.getElementById('opStatusAlert');
+    alertBox.classList.remove('d-none');
+    alertBox.className = 'alert alert-info py-2 mb-3';
+    alertBox.textContent = '正在清洗数据并写入 MySQL 数据库，请稍候...';
+
+    try {
+        const res = await (await fetch('/admin/clean-sync', { method: 'POST' })).json();
+        if (res.code === 200) {
+            alertBox.className = 'alert alert-success py-2 mb-3';
+            alertBox.textContent = `清洗并同步成功！当前数据库总商品量：${res.data ? res.data.total_products : '-'}`;
+        } else {
+            alertBox.className = 'alert alert-danger py-2 mb-3';
+            alertBox.textContent = res.message || '操作失败';
+        }
+    } catch (e) {
+        alertBox.className = 'alert alert-danger py-2 mb-3';
+        alertBox.textContent = '请求异常';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}系统分析洞察 - 电商分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">系统全量数据分析洞察</h4>
+            <p class="text-muted small mb-0">全维度商品库价格、评分与品类运营数据洞察</p>
+        </div>
+        <a href="/user/analysis" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-arrow-up-right me-1"></i>打开用户端图表</a>
+    </div>
+
+    <!-- 图表 1：各分类综合分析 -->
+    <div class="card chart-card p-3 mb-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart-line text-primary me-2"></i>各分类商品分布与均价双轴呈现</h6>
+        <div id="adminCategoryChart" style="width: 100%; height: 400px;"></div>
+    </div>
+
+    <!-- 图表 2 & 3：价格与评分区间 -->
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card chart-card p-3">
+                <h6 class="fw-bold mb-3"><i class="bi bi-pie-chart text-warning me-2"></i>全库价格分箱统计</h6>
+                <div id="adminPriceChart" class="chart-container"></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card chart-card p-3">
+                <h6 class="fw-bold mb-3"><i class="bi bi-star text-info me-2"></i>全库评分分箱统计</h6>
+                <div id="adminRatingChart" class="chart-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. 分类图表
+    try {
+        const res = await (await fetch('/analysis/category')).json();
+        if (res.code === 200 && res.data) {
+            const data = res.data;
+            const chart = echarts.init(document.getElementById('adminCategoryChart'));
+            chart.setOption({
+                tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                legend: { data: ['商品数量', '平均价格 ($)'] },
+                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                xAxis: { type: 'category', data: data.map(d => d.category), axisLabel: { rotate: 30, interval: 0 } },
+                yAxis: [{ type: 'value', name: '数量' }, { type: 'value', name: '均价($)' }],
+                series: [
+                    { name: '商品数量', type: 'bar', data: data.map(d => d.product_count || d.count), itemStyle: { color: '#3b82f6' } },
+                    { name: '平均价格 ($)', type: 'line', yAxisIndex: 1, data: data.map(d => d.avg_price || d.average_price), itemStyle: { color: '#ef4444' } }
+                ]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        }
+    } catch (e) {}
+
+    // 2. 价格
+    try {
+        const res = await (await fetch('/analysis/price')).json();
+        if (res.code === 200 && res.data && res.data.distribution) {
+            const dist = res.data.distribution;
+            const chart = echarts.init(document.getElementById('adminPriceChart'));
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: dist.map(d => d.range || d.bin) },
+                yAxis: { type: 'value' },
+                series: [{ type: 'bar', data: dist.map(d => d.count), itemStyle: { color: '#f59e0b' } }]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        }
+    } catch (e) {}
+
+    // 3. 评分
+    try {
+        const res = await (await fetch('/analysis/rating')).json();
+        if (res.code === 200 && res.data && res.data.distribution) {
+            const dist = res.data.distribution;
+            const chart = echarts.init(document.getElementById('adminRatingChart'));
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: dist.map(d => d.range || d.bin) },
+                yAxis: { type: 'value' },
+                series: [{ type: 'bar', data: dist.map(d => d.count), itemStyle: { color: '#06b6d4' } }]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        }
+    } catch (e) {}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}控制台概览 - 电商分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">系统运维与运行状态</h4>
+            <p class="text-muted small mb-0">实时掌控系统数据库规模、采集服务与用户活跃指标</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="bi bi-arrow-clockwise me-1"></i>刷新状态</button>
+    </div>
+
+    <!-- 顶部核心状态指标 -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">系统总用户数</div>
+                        <h3 class="fw-bold text-primary my-1" id="statUserCount">-</h3>
+                        <span class="badge bg-primary-subtle text-primary small">权限可控</span>
+                    </div>
+                    <div class="fs-1 text-primary opacity-25"><i class="bi bi-people"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">MySQL 商品总数</div>
+                        <h3 class="fw-bold text-success my-1" id="statProductCount">-</h3>
+                        <span class="badge bg-success-subtle text-success small">在线数据</span>
+                    </div>
+                    <div class="fs-1 text-success opacity-25"><i class="bi bi-box"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">采集任务记录</div>
+                        <h3 class="fw-bold text-warning my-1" id="statTaskCount">-</h3>
+                        <span class="badge bg-warning-subtle text-warning small">调度追踪</span>
+                    </div>
+                    <div class="fs-1 text-warning opacity-25"><i class="bi bi-cpu"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">数据库类型</div>
+                        <h3 class="fw-bold text-info my-1">MySQL 5.7</h3>
+                        <span class="badge bg-info-subtle text-info small">SQLAlchemy ORM</span>
+                    </div>
+                    <div class="fs-1 text-info opacity-25"><i class="bi bi-hdd-network"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快捷运维操作卡片 -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-lightning-charge text-warning me-2"></i>快捷运维中心</h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="fw-semibold mb-1">自动化数据采集</div>
+                        <div class="text-muted small mb-3">从公开数据源 DummyJSON 触发全量爬虫</div>
+                        <a href="/admin/crawler" class="btn btn-outline-primary btn-sm">前往采集任务</a>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="fw-semibold mb-1">数据清洗与质检</div>
+                        <div class="text-muted small mb-3">执行缺失值、重复值清理并同步至 MySQL</div>
+                        <a href="/admin/data" class="btn btn-outline-success btn-sm">前往清洗控制</a>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="fw-semibold mb-1">审计与用户控制</div>
+                        <div class="text-muted small mb-3">审查用户行为、启禁账号与系统审计日志</div>
+                        <a href="/admin/users" class="btn btn-outline-secondary btn-sm">前往用户管理</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await (await fetch('/admin/stats')).json();
+        if (res.code === 200 && res.data) {
+            document.getElementById('statUserCount').textContent = res.data.user_count ?? 0;
+            document.getElementById('statProductCount').textContent = res.data.product_count ?? 0;
+            document.getElementById('statTaskCount').textContent = res.data.task_count ?? 0;
+        }
+    } catch (e) {
+        console.error('Failed to load admin stats:', e);
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}系统运行与操作日志 - 电商分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">系统运行与操作审计日志</h4>
+            <p class="text-muted small mb-0">实时查看爬虫执行文本日志及系统关键操作记录</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="loadLogs()"><i class="bi bi-arrow-clockwise me-1"></i>刷新日志</button>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-text text-primary me-2"></i>爬虫实时运行日志 (logs/crawler.log)</h6>
+            <span class="badge bg-light text-dark border">最新 100 行</span>
+        </div>
+        <div class="card-body p-0">
+            <pre id="crawlerLogArea" class="bg-dark text-light p-3 m-0 rounded-bottom small overflow-auto" style="max-height: 400px; font-family: Consolas, monospace; line-height: 1.5;">加载中...</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadLogs() {
+    const area = document.getElementById('crawlerLogArea');
+    area.textContent = '加载日志中...';
+    try {
+        const res = await (await fetch('/admin/crawler-log')).json();
+        if (res.code === 200 && res.data) {
+            area.textContent = res.data.content || '暂无日志记录';
+            area.scrollTop = area.scrollHeight;
+        } else {
+            area.textContent = res.message || '无法获取日志';
+        }
+    } catch (e) {
+        area.textContent = '加载失败';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadLogs);
+</script>
+{% endblock %}

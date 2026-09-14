@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}我的数据集与自定义分析 - 电商数据分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">我的数据集与自定义分析</h4>
+            <p class="text-muted small mb-0">查看已上传的 CSV 数据集，探索数值直方图分布、分类统计与缺失值检测</p>
+        </div>
+        <a href="/user/upload" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>上传新数据集</a>
+    </div>
+
+    <div class="row g-4">
+        <!-- 左侧：数据集列表 -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-collection text-primary me-2"></i>数据集列表</h6>
+                    <span class="badge bg-light text-dark border" id="datasetCountBadge">0 个</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush" id="datasetListGroup" style="max-height: 600px; overflow-y: auto;">
+                        <div class="p-4 text-center text-muted small">加载数据集列表中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：当前选中数据集详情与 ECharts 自定义分析报告 -->
+        <div class="col-lg-8">
+            <div id="emptyTip" class="card border-0 shadow-sm rounded-3 p-5 text-center text-muted">
+                <i class="bi bi-bar-chart-steps display-4 text-secondary mb-3"></i>
+                <p class="mb-0">请从左侧选择一个数据集，查看其全维度自动化分析图表</p>
+            </div>
+
+            <div id="datasetDetailArea" class="d-none">
+                <!-- 数据集基本信息卡片 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="fw-bold mb-1" id="currentDatasetName">-</h5>
+                            <div class="small text-muted" id="currentDatasetMeta">-</div>
+                        </div>
+                        <span class="badge bg-success-subtle text-success px-3 py-2" id="currentDatasetStatus">已就绪</span>
+                    </div>
+                </div>
+
+                <!-- 缺失值与数据质量评估卡片 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle text-warning me-2"></i>数据列完整性与缺失率</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="table-light"><tr><th class="ps-3">数据列名</th><th>缺失条数</th><th>缺失率</th></tr></thead>
+                                <tbody id="missingTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数值型列动态直方图区域 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-graph-up text-primary me-2"></i>数值列统计指标与直方图分箱</h6>
+                        <select class="form-select form-select-sm w-auto" id="numericColSelect"></select>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 mb-3 text-center small" id="numericKpiRow"></div>
+                        <div id="customNumericChart" style="width: 100%; height: 350px;"></div>
+                    </div>
+                </div>
+
+                <!-- 分类型列分布饼图区域 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-pie-chart text-success me-2"></i>分类列频数占比分布</h6>
+                        <select class="form-select form-select-sm w-auto" id="categoryColSelect"></select>
+                    </div>
+                    <div class="card-body">
+                        <div id="customCategoryChart" style="width: 100%; height: 350px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allDatasets = [];
+let activeDatasetId = null;
+let activeAnalysisData = null;
+let numChartInstance = null;
+let catChartInstance = null;
+
+async function loadDatasetList() {
+    const listGroup = document.getElementById('datasetListGroup');
+    try {
+        const res = await (await fetch('/dataset/list')).json();
+        if (res.code === 200 && res.data) {
+            allDatasets = res.data;
+            document.getElementById('datasetCountBadge').textContent = `${allDatasets.length} 个`;
+            if (allDatasets.length === 0) {
+                listGroup.innerHTML = '<div class="p-4 text-center text-muted small">暂无数据集，点击右上角上传</div>';
+                return;
+            }
+
+            listGroup.innerHTML = allDatasets.map(d => `
+                <a href="javascript:void(0);" onclick="selectDataset(${d.id})" class="list-group-item list-group-item-action p-3 dataset-item" id="dataset-item-${d.id}">
+                    <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                        <span class="fw-semibold text-truncate" style="max-width: 200px;">${d.dataset_name}</span>
+                        <span class="badge bg-light text-secondary border">${d.row_count} 行</span>
+                    </div>
+                    <div class="small text-muted d-flex justify-content-between">
+                        <span>${d.file_name}</span>
+                        <span>${d.created_at ? d.created_at.split(' ')[0] : ''}</span>
+                    </div>
+                </a>
+            `).join('');
+
+            // 从 URL query 获取选中的 id，或者默认选第 1 个
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryId = urlParams.get('id');
+            const targetId = queryId ? Number(queryId) : allDatasets[0].id;
+            selectDataset(targetId);
+        }
+    } catch (e) {
+        listGroup.innerHTML = '<div class="p-4 text-center text-danger small">加载数据集失败</div>';
+    }
+}
+
+async function selectDataset(datasetId) {
+    activeDatasetId = datasetId;
+    document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('active'));
+    const targetItem = document.getElementById(`dataset-item-${datasetId}`);
+    if (targetItem) targetItem.classList.add('active');
+
+    const ds = allDatasets.find(d => d.id === datasetId);
+    if (!ds) return;
+
+    document.getElementById('emptyTip').classList.add('d-none');
+    document.getElementById('datasetDetailArea').classList.remove('d-none');
+
+    document.getElementById('currentDatasetName').textContent = ds.dataset_name;
+    document.getElementById('currentDatasetMeta').textContent = `文件名：${ds.file_name} | 数据行数：${ds.row_count} 行 | 上传时间：${ds.created_at || '-'}`;
+
+    // 加载自定义分析数据
+    try {
+        const res = await (await fetch(`/dataset/${datasetId}/analysis`)).json();
+        if (res.code === 200 && res.data) {
+            activeAnalysisData = res.data;
+            renderMissingTable(activeAnalysisData.missing_stats || []);
+            setupNumericSelect(activeAnalysisData.numeric_stats || {});
+            setupCategorySelect(activeAnalysisData.category_stats || {});
+        }
+    } catch (e) {
+        console.error('Failed to load dataset analysis:', e);
+    }
+}
+
+function renderMissingTable(missingList) {
+    const tbody = document.getElementById('missingTableBody');
+    if (missingList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">无缺失值记录</td></tr>';
+        return;
+    }
+    tbody.innerHTML = missingList.map(m => `
+        <tr>
+            <td class="ps-3 fw-semibold">${m.column}</td>
+            <td>${m.missing_count}</td>
+            <td>
+                <span class="badge ${m.missing_rate > 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'}">
+                    ${m.missing_rate}%
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function setupNumericSelect(numericMap) {
+    const select = document.getElementById('numericColSelect');
+    select.innerHTML = '';
+    const keys = Object.keys(numericMap);
+    if (keys.length === 0) {
+        select.innerHTML = '<option value="">无数值型列</option>';
+        document.getElementById('numericKpiRow').innerHTML = '';
+        return;
+    }
+    keys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        select.appendChild(opt);
+    });
+    select.onchange = () => renderNumericChart(select.value, numericMap[select.value]);
+    renderNumericChart(keys[0], numericMap[keys[0]]);
+}
+
+function renderNumericChart(colName, colData) {
+    if (!colData) return;
+    document.getElementById('numericKpiRow').innerHTML = `
+        <div class="col-3"><div class="p-2 border rounded bg-light">均值: <b>${colData.mean}</b></div></div>
+        <div class="col-3"><div class="p-2 border rounded bg-light">中位数: <b>${colData.median}</b></div></div>
+        <div class="col-3"><div class="p-2 border rounded bg-light">最高: <b>${colData.max}</b></div></div>
+        <div class="col-3"><div class="p-2 border rounded bg-light">最低: <b>${colData.min}</b></div></div>
+    `;
+
+    const bins = (colData.histogram || []).map(h => h.range);
+    const counts = (colData.histogram || []).map(h => h.count);
+
+    if (!numChartInstance) {
+        numChartInstance = echarts.init(document.getElementById('customNumericChart'));
+        window.addEventListener('resize', () => numChartInstance.resize());
+    }
+
+    numChartInstance.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: '3%', right: '4%', bottom: '12%', containLabel: true },
+        xAxis: { type: 'category', data: bins, name: '区间' },
+        yAxis: { type: 'value', name: '频数' },
+        series: [{
+            name: colName,
+            type: 'bar',
+            data: counts,
+            itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }
+        }]
+    });
+}
+
+function setupCategorySelect(categoryMap) {
+    const select = document.getElementById('categoryColSelect');
+    select.innerHTML = '';
+    const keys = Object.keys(categoryMap);
+    if (keys.length === 0) {
+        select.innerHTML = '<option value="">无分类型列</option>';
+        return;
+    }
+    keys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        select.appendChild(opt);
+    });
+    select.onchange = () => renderCategoryChart(select.value, categoryMap[select.value]);
+    renderCategoryChart(keys[0], categoryMap[keys[0]]);
+}
+
+function renderCategoryChart(colName, colData) {
+    if (!colData || colData.length === 0) return;
+    if (!catChartInstance) {
+        catChartInstance = echarts.init(document.getElementById('customCategoryChart'));
+        window.addEventListener('resize', () => catChartInstance.resize());
+    }
+
+    catChartInstance.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { orient: 'vertical', left: 'left' },
+        series: [{
+            name: colName,
+            type: 'pie',
+            radius: ['35%', '65%'],
+            center: ['60%', '50%'],
+            avoidLabelOverlap: false,
+            data: colData
+        }]
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadDatasetList);
+</script>
+{% endblock %}

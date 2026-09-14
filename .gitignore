@@ -1,0 +1,27 @@
+﻿# Environment variables
+.env
+*.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*.class
+.pytest_cache/
+
+# Data files (keep git clean)
+data/raw/*.csv
+data/cleaned/*.csv
+data/user_upload/*
+!data/raw/.gitkeep
+!data/cleaned/.gitkeep
+!data/user_upload/.gitkeep
+
+# Logs
+logs/*.log
+!logs/.gitkeep
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

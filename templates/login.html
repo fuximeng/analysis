@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}用户登录 - 电商数据分析系统{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5 col-lg-4">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="display-6 text-primary mb-2"><i class="bi bi-person-lock"></i></div>
+                        <h4 class="fw-bold">欢迎登录</h4>
+                        <p class="text-muted small">电商数据采集、分析与可视化系统</p>
+                    </div>
+
+                    <div id="loginAlert" class="alert alert-danger d-none py-2" role="alert"></div>
+
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">用户名</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="username" name="username" required placeholder="请输入用户名" autofocus>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-semibold">密码</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input type="password" class="form-control" id="password" name="password" required placeholder="请输入密码">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="submitBtn">
+                            登 录
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-4 text-muted small">
+                        还没有账号？ <a href="/register" class="text-decoration-none">立即注册</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const alertBox = document.getElementById('loginAlert');
+    alertBox.classList.add('d-none');
+    btn.disabled = true;
+    btn.textContent = '登录中...';
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    try {
+        const resp = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const res = await resp.json();
+        if (res.code === 200) {
+            window.location.href = res.data.redirect_url || '/';
+        } else {
+            alertBox.textContent = res.message || '登录失败';
+            alertBox.classList.remove('d-none');
+        }
+    } catch (err) {
+        alertBox.textContent = '网络请求异常，请稍后重试';
+        alertBox.classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '登 录';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}多维数据可视化看板 - 电商数据分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">多维数据可视化看板</h4>
+            <p class="text-muted small mb-0">深度图表分析：分类均价对比、价格/评分区间直方图及 Top 排行榜</p>
+        </div>
+    </div>
+
+    <!-- 第一排图表：分类综合对比（双柱状图：商品数与平均价格） -->
+    <div class="card chart-card p-3 mb-4">
+        <h6 class="fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-bar-chart-steps me-2 text-primary"></i>各分类商品数量与平均价格对比
+        </h6>
+        <div id="chartCategoryCompare" style="width: 100%; height: 420px;"></div>
+    </div>
+
+    <!-- 第二排图表：价格分布与评分分布 -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card chart-card p-3">
+                <h6 class="fw-bold mb-3 d-flex align-items-center">
+                    <i class="bi bi-cash-coin me-2 text-warning"></i>价格区间分布直方图
+                </h6>
+                <div id="chartPriceDetail" class="chart-container"></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card chart-card p-3">
+                <h6 class="fw-bold mb-3 d-flex align-items-center">
+                    <i class="bi bi-star-half me-2 text-info"></i>评分区间分布直方图
+                </h6>
+                <div id="chartRatingDetail" class="chart-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第三排：商品排行榜 Tab 切换 -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white border-0 pt-3 pb-0">
+            <ul class="nav nav-tabs card-header-tabs" id="rankTabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active fw-semibold" id="tab-top-rated" data-bs-toggle="tab" data-bs-target="#pane-top-rated" type="button">
+                        <i class="bi bi-trophy text-warning me-1"></i>高评分 Top 10
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-semibold" id="tab-top-expensive" data-bs-toggle="tab" data-bs-target="#pane-top-expensive" type="button">
+                        <i class="bi bi-arrow-up-circle text-danger me-1"></i>高价格 Top 10
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-semibold" id="tab-top-cheapest" data-bs-toggle="tab" data-bs-target="#pane-top-cheapest" type="button">
+                        <i class="bi bi-arrow-down-circle text-success me-1"></i>低价格 Top 10
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-semibold" id="tab-top-stock" data-bs-toggle="tab" data-bs-target="#pane-top-stock" type="button">
+                        <i class="bi bi-box2 text-primary me-1"></i>高库存 Top 10
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="pane-top-rated">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th class="ps-3">排名</th><th>商品名称</th><th>分类</th><th>售价</th><th>评分</th></tr></thead>
+                            <tbody id="topRatedBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="pane-top-expensive">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th class="ps-3">排名</th><th>商品名称</th><th>分类</th><th>售价</th><th>评分</th></tr></thead>
+                            <tbody id="topExpensiveBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="pane-top-cheapest">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th class="ps-3">排名</th><th>商品名称</th><th>分类</th><th>售价</th><th>评分</th></tr></thead>
+                            <tbody id="topCheapestBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="pane-top-stock">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light"><tr><th class="ps-3">排名</th><th>商品名称</th><th>分类</th><th>库存数量</th><th>售价</th></tr></thead>
+                            <tbody id="topStockBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    // 1. 分类综合图表 (双Y轴：数量 + 平均价格)
+    const catDom = document.getElementById('chartCategoryCompare');
+    const catChart = catDom ? echarts.init(catDom) : null;
+    if (catChart) catChart.showLoading({ text: '数据加载中...' });
+
+    try {
+        const res = await (await fetch('/analysis/category')).json();
+        if (catChart) catChart.hideLoading();
+
+        if (res.code === 200 && res.data) {
+            const data = res.data;
+            const categories = data.map(d => d.category);
+            const counts = data.map(d => d.product_count);
+            const avgPrices = data.map(d => Number(d.avg_price).toFixed(2));
+
+            if (catChart) {
+                catChart.setOption({
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                    legend: { data: ['商品数量', '平均价格 ($)'] },
+                    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                    xAxis: {
+                        type: 'category',
+                        data: categories,
+                        axisLabel: { rotate: 35, interval: 0, fontSize: 11 }
+                    },
+                    yAxis: [
+                        { type: 'value', name: '商品数量', position: 'left' },
+                        { type: 'value', name: '平均价格 ($)', position: 'right' }
+                    ],
+                    series: [
+                        {
+                            name: '商品数量',
+                            type: 'bar',
+                            data: counts,
+                            itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }
+                        },
+                        {
+                            name: '平均价格 ($)',
+                            type: 'line',
+                            yAxisIndex: 1,
+                            data: avgPrices,
+                            itemStyle: { color: '#ef4444' },
+                            lineStyle: { width: 3 }
+                        }
+                    ]
+                });
+                window.addEventListener('resize', () => catChart.resize());
+            }
+        }
+    } catch (e) {
+        if (catChart) catChart.hideLoading();
+        console.error('Failed to load category comparison:', e);
+    }
+
+    // 2. 价格区间直方图
+    const priceDom = document.getElementById('chartPriceDetail');
+    const priceChart = priceDom ? echarts.init(priceDom) : null;
+    if (priceChart) priceChart.showLoading({ text: '数据加载中...' });
+
+    try {
+        const res = await (await fetch('/analysis/price')).json();
+        if (priceChart) priceChart.hideLoading();
+
+        if (res.code === 200 && res.data && Array.isArray(res.data.distribution)) {
+            const dist = res.data.distribution;
+            if (priceChart) {
+                priceChart.setOption({
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                    xAxis: { type: 'category', data: dist.map(d => d.range || d.bin || '其他') },
+                    yAxis: { type: 'value', name: '商品数' },
+                    series: [{
+                        type: 'bar',
+                        data: dist.map(d => Number(d.count) || 0),
+                        itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] }
+                    }]
+                });
+                window.addEventListener('resize', () => priceChart.resize());
+            }
+        }
+    } catch (e) {
+        if (priceChart) priceChart.hideLoading();
+        console.error('Failed to load price detail:', e);
+    }
+
+    // 3. 评分区间直方图
+    const ratingDom = document.getElementById('chartRatingDetail');
+    const ratingChart = ratingDom ? echarts.init(ratingDom) : null;
+    if (ratingChart) ratingChart.showLoading({ text: '数据加载中...' });
+
+    try {
+        const res = await (await fetch('/analysis/rating')).json();
+        if (ratingChart) ratingChart.hideLoading();
+
+        if (res.code === 200 && res.data && Array.isArray(res.data.distribution)) {
+            const dist = res.data.distribution;
+            if (ratingChart) {
+                ratingChart.setOption({
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                    xAxis: { type: 'category', data: dist.map(d => d.range || d.bin || '其他') },
+                    yAxis: { type: 'value', name: '商品数' },
+                    series: [{
+                        type: 'bar',
+                        data: dist.map(d => Number(d.count) || 0),
+                        itemStyle: { color: '#06b6d4', borderRadius: [4, 4, 0, 0] }
+                    }]
+                });
+                window.addEventListener('resize', () => ratingChart.resize());
+            }
+        }
+    } catch (e) {
+        if (ratingChart) ratingChart.hideLoading();
+        console.error('Failed to load rating detail:', e);
+    }
+
+    // 4. 排行榜加载
+    try {
+        const res = await (await fetch('/analysis/ranking')).json();
+        if (res.code === 200 && res.data) {
+            const { top_rated, top_expensive, top_cheapest, top_stock } = res.data;
+            
+            const renderTable = (list, tbodyId, isStock = false) => {
+                const tbody = document.getElementById(tbodyId);
+                tbody.innerHTML = (list || []).map((item, idx) => `
+                    <tr>
+                        <td class="ps-3"><span class="badge ${idx < 3 ? 'bg-primary' : 'bg-secondary'}">${idx + 1}</span></td>
+                        <td class="fw-semibold">${item.product_name || item.title || '-'}</td>
+                        <td><span class="badge bg-light text-dark border">${item.category || '-'}</span></td>
+                        ${isStock ? `<td><span class="fw-bold text-success">${item.stock}</span></td>` : ''}
+                        <td>$${(Number(item.price) || 0).toFixed(2)}</td>
+                        ${!isStock ? `<td><span class="badge bg-warning text-dark">★ ${(Number(item.rating) || 0).toFixed(2)}</span></td>` : ''}
+                    </tr>
+                `).join('');
+            };
+
+            renderTable(top_rated, 'topRatedBody');
+            renderTable(top_expensive, 'topExpensiveBody');
+            renderTable(top_cheapest, 'topCheapestBody');
+            renderTable(top_stock, 'topStockBody', true);
+        }
+    } catch (e) {
+        console.error('Failed to load rankings:', e);
+    }
+});
+</script>
+{% endblock %}
